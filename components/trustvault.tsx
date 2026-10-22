@@ -707,13 +707,13 @@ export default function TrustVault() {
         </section>
         <section className="login-form">
           <div className="login-box">
-            <Badge tone="amber">
-              {session?.demo
-                ? "Local demo mode"
-                : session?.authMode === "supabase"
-                  ? "Supabase authentication"
+            {session?.authMode !== "supabase" && (
+              <Badge tone="amber">
+                {session?.demo
+                  ? "Local demo mode"
                   : "TideCloak authentication"}
-            </Badge>
+              </Badge>
+            )}
             <h2>Welcome to your vault</h2>
             <p className="muted">
               {session?.demo
