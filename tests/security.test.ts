@@ -17,6 +17,15 @@ import {
 import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import { readFilePrivate, validateFile, AppError } from "../lib/storage";
 import type { User } from "@prisma/client";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import {
+  createSupabaseContext,
+  authenticateSupabase,
+  resolveSupabaseUser,
+  supabaseCredentials,
+  supabaseConfigured,
+} from "../lib/supabase";
+import { NextResponse } from "next/server";
 let student: User,
   recipient: User,
   adminA: User,
@@ -59,6 +68,59 @@ const denied = (fn: () => Promise<unknown>, status: number) =>
     fn,
     (e: unknown) => e instanceof AppError && e.status === status,
   );
+
+function supabaseFixture(
+  id = "11111111-1111-4111-8111-111111111111",
+  email = "verified-student@example.test",
+): SupabaseUser {
+  return {
+    id,
+    email,
+    email_confirmed_at: new Date().toISOString(),
+    aud: "authenticated",
+    role: "authenticated",
+    created_at: new Date().toISOString(),
+    app_metadata: { provider: "email" },
+    user_metadata: {
+      display_name: "Verified Student",
+      role: "ADMINISTRATOR",
+      organisation: "Spoofed organisation",
+    },
+    is_anonymous: false,
+  };
+}
+async function withSupabaseTest(work: () => Promise<void>) {
+  const names = ["AUTH_MODE", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY"];
+  const saved = Object.fromEntries(names.map((k) => [k, process.env[k]]));
+  Object.assign(process.env, {
+    AUTH_MODE: "supabase",
+    SUPABASE_URL: "https://test.supabase.co",
+    SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test-only-key",
+  });
+  try {
+    await work();
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+}
+async function supabaseToken(user: SupabaseUser, expires = 3600) {
+  return new SignJWT({ sub: user.id, email: user.email, role: "authenticated" })
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(Math.floor(Date.now() / 1000) + expires)
+    .sign(
+      new TextEncoder().encode("test-only-signature-key-never-used-for-trust"),
+    );
+}
+function providerResponse(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 test("authentication requires a valid signed session and reads roles from the database", async () => {
   await denied(() => authenticate(new Request("http://127.0.0.1:3000")), 401);
   const token = await makeDemoSession(student.id);
@@ -508,4 +570,277 @@ test("installed TideCloak SDK verifies signed tokens and rejects invalid signatu
       else process.env[key] = value;
     }
   }
+});
+
+test("Supabase getUser verification provisions a student and ignores editable role metadata", async () =>
+  withSupabaseTest(async () => {
+    const user = supabaseFixture();
+    let checks = 0;
+    const context = createSupabaseContext(
+      new Request("http://127.0.0.1:3000"),
+      async (input) => {
+        assert.match(String(input), /\/auth\/v1\/user/);
+        checks++;
+        return providerResponse(user);
+      },
+    );
+    const verified = await authenticateSupabase(
+      new Request("http://127.0.0.1:3000", {
+        headers: { authorization: "Bearer test-token" },
+      }),
+      context.client,
+    );
+    assert.equal(checks, 1);
+    assert.equal(verified.subject, "supabase:" + user.id);
+    assert.equal(verified.role, "STUDENT");
+    assert.equal(verified.organisation, null);
+    assert.equal(verified.demo, false);
+    await db.user.update({
+      where: { id: verified.id },
+      data: { role: "RECIPIENT", organisation: "Provisioned organisation" },
+    });
+    assert.equal(
+      (
+        await resolveSupabaseUser({
+          ...user,
+          user_metadata: { role: "ADMINISTRATOR" },
+        })
+      ).role,
+      "RECIPIENT",
+    );
+  }));
+
+test("Supabase anonymous and unconfirmed users cannot open a vault", async () =>
+  withSupabaseTest(async () => {
+    await denied(
+      () => resolveSupabaseUser({ ...supabaseFixture(), is_anonymous: true }),
+      403,
+    );
+    const unconfirmed = supabaseFixture();
+    delete unconfirmed.email_confirmed_at;
+    await denied(() => resolveSupabaseUser(unconfirmed), 403);
+  }));
+
+test("Supabase email collisions never automatically link a demo or another provider identity", async () =>
+  withSupabaseTest(async () => {
+    await denied(
+      () =>
+        resolveSupabaseUser(
+          supabaseFixture(
+            "22222222-2222-4222-8222-222222222222",
+            student.email,
+          ),
+        ),
+      403,
+    );
+    assert.equal(
+      (await db.user.findUniqueOrThrow({ where: { id: student.id } })).demo,
+      true,
+    );
+  }));
+
+test("Supabase password login writes HttpOnly no-store cookies and logout clears them", async () =>
+  withSupabaseTest(async () => {
+    const user = supabaseFixture(
+        "33333333-3333-4333-8333-333333333333",
+        "password-login@example.test",
+      ),
+      token = await supabaseToken(user);
+    const context = createSupabaseContext(
+      new Request("http://127.0.0.1:3000"),
+      async (input) => {
+        const url = String(input);
+        if (url.includes("/token"))
+          return providerResponse({
+            access_token: token,
+            refresh_token: "test-refresh-token",
+            token_type: "bearer",
+            expires_in: 3600,
+            user,
+          });
+        if (url.includes("/user")) return providerResponse(user);
+        if (url.includes("/logout")) return new Response(null, { status: 204 });
+        throw new Error("Unexpected provider route");
+      },
+    );
+    await supabaseCredentials(
+      context.client,
+      { email: user.email!, password: "test-only-password" },
+      false,
+    );
+    const signedIn = context.apply(NextResponse.json({ ok: true }));
+    assert.match(signedIn.headers.get("set-cookie")!, /HttpOnly/i);
+    assert.match(signedIn.headers.get("cache-control")!, /no-store/);
+    assert.equal(JSON.stringify(await signedIn.json()).includes(token), false);
+    await context.client.auth.signOut({ scope: "local" });
+    const signedOut = context.apply(NextResponse.json({ ok: true }));
+    assert.match(signedOut.headers.get("set-cookie")!, /Max-Age=0/i);
+  }));
+
+test("Supabase invalid credentials and forged cookie identities are rejected by the provider", async () =>
+  withSupabaseTest(async () => {
+    const user = supabaseFixture(),
+      token = await supabaseToken(user);
+    const session = {
+      access_token: token,
+      refresh_token: "fake",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      expires_in: 3600,
+      token_type: "bearer",
+      user: { ...user, user_metadata: { role: "ADMINISTRATOR" } },
+    };
+    const req = new Request("http://127.0.0.1:3000", {
+      headers: {
+        cookie:
+          "sb-test-auth-token=base64-" +
+          Buffer.from(JSON.stringify(session)).toString("base64url"),
+      },
+    });
+    let checked = false;
+    const context = createSupabaseContext(req, async () => {
+      checked = true;
+      return providerResponse(
+        { message: "Invalid credentials", error_code: "bad_jwt" },
+        401,
+      );
+    });
+    await denied(() => authenticateSupabase(req, context.client), 401);
+    assert.equal(checked, true);
+    await denied(
+      () =>
+        supabaseCredentials(
+          context.client,
+          { email: user.email!, password: "wrong" },
+          false,
+        ),
+      401,
+    );
+  }));
+
+test("Supabase expired sessions refresh and propagate rotated cookies on the same response", async () =>
+  withSupabaseTest(async () => {
+    const user = supabaseFixture(
+        "44444444-4444-4444-8444-444444444444",
+        "refresh@example.test",
+      ),
+      expired = await supabaseToken(user, -120),
+      fresh = await supabaseToken(user);
+    const session = {
+      access_token: expired,
+      refresh_token: "test-refresh",
+      expires_at: Math.floor(Date.now() / 1000) - 120,
+      expires_in: 3600,
+      token_type: "bearer",
+      user,
+    };
+    const req = new Request("http://127.0.0.1:3000", {
+      headers: {
+        cookie:
+          "sb-test-auth-token=base64-" +
+          Buffer.from(JSON.stringify(session)).toString("base64url"),
+      },
+    });
+    let refreshed = false;
+    const context = createSupabaseContext(req, async (input) => {
+      if (String(input).includes("/token")) {
+        refreshed = true;
+        return providerResponse({
+          access_token: fresh,
+          refresh_token: "rotated-refresh",
+          expires_in: 3600,
+          token_type: "bearer",
+          user,
+        });
+      }
+      return providerResponse(user);
+    });
+    await authenticateSupabase(req, context.client);
+    assert.equal(refreshed, true);
+    const res = context.apply(NextResponse.json({ ok: true }));
+    assert.match(res.headers.get("set-cookie")!, /HttpOnly/i);
+    assert.match(res.headers.get("cache-control")!, /no-store/);
+  }));
+
+test("Supabase sign-up requires confirmation and cannot submit a privileged role", async () =>
+  withSupabaseTest(async () => {
+    const user = supabaseFixture(
+      "55555555-5555-4555-8555-555555555555",
+      "signup@example.test",
+    );
+    delete user.email_confirmed_at;
+    const context = createSupabaseContext(
+      new Request("http://127.0.0.1:3000"),
+      async (_input, init) => {
+        const body = JSON.parse(String(init?.body));
+        assert.equal(body.data.display_name, "New student");
+        assert.equal("role" in body.data, false);
+        return providerResponse(user);
+      },
+    );
+    const result = await supabaseCredentials(
+      context.client,
+      {
+        email: user.email!,
+        password: "long-test-only-password",
+        name: "New student",
+      },
+      true,
+    );
+    assert.equal(
+      "confirmationRequired" in result && result.confirmationRequired,
+      true,
+    );
+  }));
+
+test("Supabase misconfiguration and service-role secrets fail closed", async () =>
+  withSupabaseTest(async () => {
+    delete process.env.SUPABASE_PUBLISHABLE_KEY;
+    assert.equal(supabaseConfigured(), false);
+    assert.throws(() =>
+      createSupabaseContext(new Request("http://127.0.0.1:3000")),
+    );
+    process.env.SUPABASE_PUBLISHABLE_KEY = "sb_secret_not-permitted";
+    assert.equal(supabaseConfigured(), false);
+  }));
+
+test("real students own their synthetic samples and real recipients cannot request demo students", async () => {
+  const real = await db.user.create({
+    data: {
+      subject: "supabase:66666666-6666-4666-8666-666666666666",
+      email: "real-sample@example.test",
+      name: "Real Student",
+      role: "STUDENT",
+      demo: false,
+    },
+  });
+  await s.addSamples(real);
+  const docs = await db.document.findMany({ where: { ownerId: real.id } });
+  assert.equal(docs.length, 3);
+  await denied(() => s.preview(student, docs[0].id), 404);
+  await denied(() => s.addSamples(real), 409);
+  await denied(() => s.addSamples(adminA), 403);
+  const rec = await db.user.findUniqueOrThrow({
+    where: { subject: "supabase:11111111-1111-4111-8111-111111111111" },
+  });
+  await denied(
+    () =>
+      s.createRequest(rec, {
+        studentId: student.id,
+        purpose: "Verify student status for a real account test.",
+        documentKind: "enrolment",
+        fields: ["enrolmentStatus"],
+        durationHours: 24,
+      }),
+    404,
+  );
+  const info = await s.overview(rec);
+  assert.ok("students" in info);
+  assert.equal(
+    info.students!.some((u) => u.id === student.id),
+    false,
+  );
+  assert.equal(
+    info.students!.some((u) => u.id === real.id),
+    true,
+  );
 });

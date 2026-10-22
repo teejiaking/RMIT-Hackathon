@@ -2,6 +2,17 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 if (!existsSync(".env")) {
   let env = readFileSync(".env.example", "utf8");
+  if (!process.argv.includes("--supabase"))
+    env = env
+      .replace('AUTH_MODE="supabase"', 'AUTH_MODE="demo"')
+      .replace(
+        'DATABASE_URL="file:./trustvault-supabase.db"',
+        'DATABASE_URL="file:./trustvault.db"',
+      )
+      .replace(
+        'STORAGE_DIR="./private-storage-supabase"',
+        'STORAGE_DIR="./private-storage"',
+      );
   env = env
     .replace(
       'SESSION_SECRET=""',

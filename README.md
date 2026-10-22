@@ -2,7 +2,13 @@
 
 A working local hackathon prototype for private student documents, selective consent, revocable recipient access, and two-person policy approval. **Use synthetic data only.**
 
-## Start the local demo
+## Real accounts: Supabase (current configuration)
+
+The active workspace uses **Supabase Auth**, with a separate real-account SQLite database and private storage directory. Sign up with your own email, confirm it, then sign in. There is no demo account switcher in this mode. Start with `npm run setup`, configure the project URL/publishable key in `.env`, then `npm run db:migrate`, `npm run build`, and `npm start`. See **[SUPABASE.md](SUPABASE.md)** for exact settings, staff role provisioning, verified-session handling, and current integration/test status. No service-role secret is needed. The TideCloak adapter remains an optional alternate provider.
+
+## Optional local demo
+
+For an existing real-account configuration, deliberately switch `.env` to `AUTH_MODE="demo"`, `DATABASE_URL="file:./trustvault.db"` and `STORAGE_DIR="./private-storage"` first. Never run a demo reset against the real-account database. `demo:setup` preserves an existing `.env`; it does not switch its mode automatically.
 
 Requires **Node.js 24.x** and npm. Node's built-in SQLite API is used only to initialize the local database file before Prisma migrations (a Windows engine workaround). Run from this project directory:
 
@@ -37,7 +43,7 @@ npm run typecheck
 npm run build
 ```
 
-`npm test` migrates and resets a separate `prisma/trustvault-test.db` and uses `test-results/storage`; it does not reset the main demo database. It runs 23 tests, including cryptographic token validation using the installed TideCloak verifier and locally generated test keys. These are **not** tests against a live TideCloak server.
+`npm test` migrates and resets a separate `prisma/trustvault-test.db` and uses `test-results/storage`; it does not reset the active real-account database or demo database. It runs 32 tests, including Supabase session/role tests and cryptographic token validation using the installed TideCloak verifier and locally generated test keys. SDK provider fixtures are used for automated Supabase success flows; these are not successful live email account tests.
 
 With `npm run demo` or `npm run dev` running in another terminal:
 
@@ -76,7 +82,7 @@ On every recipient retrieval the server checks authentication, recipient identit
 
 **Rules-based demo analysis**, computed server-side from the stated purpose and requested field names. No LLM credentials were available. No model calls are made and no document content is transmitted. Student verification suggests enrolment confirmation, with name or student identifier only where applicable, flags unnecessary sensitive identifiers, and suggests at most 24 hours. It is an advisory heuristic, not legal advice, live AI inference, or a safety guarantee.
 
-## Real TideCloak configuration
+## Optional TideCloak configuration
 
 No live TideCloak server, realm, client credentials, or user mappings were supplied. The **adapter is implemented and locally signature-tested; live sign-in is unverified**. It uses documented `verifyTideCloakToken(config, token, allowedRoles)` from `@tidecloak/nextjs/server`, installed SDK 0.14.40 (underlying `@tidecloak/verify` 0.14.33). Source inspection confirmed signature, issuer, expiry and `azp`/client-role validation. TrustVault additionally pins expected issuer/client, requires `exp` and `sub`, and maps the verified subject to a non-demo database account with a matching verified role. Unknown subjects fail closed; email is not an authorization identity.
 

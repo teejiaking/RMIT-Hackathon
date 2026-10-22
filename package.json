@@ -13,14 +13,18 @@
     "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx scripts/seed.ts",
     "demo:setup": "tsx scripts/setup.ts",
+    "setup": "tsx scripts/setup.ts --supabase",
     "demo:reset": "tsx scripts/reset.ts",
     "test": "tsx scripts/test.ts",
     "test:http": "tsx scripts/http-smoke.ts",
+    "test:supabase": "tsx scripts/supabase-smoke.ts",
     "typecheck": "tsc --noEmit",
     "auth:provision": "tsx scripts/provision.ts"
   },
   "dependencies": {
     "@prisma/client": "6.19.0",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
     "@tidecloak/nextjs": "0.14.40",
     "jose": "^6.1.0",
     "lucide-react": "^0.468.0",

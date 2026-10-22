@@ -30,6 +30,7 @@ import {
   Users,
 } from "lucide-react";
 import { fieldLabels } from "@/lib/guardian";
+import SupabaseAuth from "./supabase-auth";
 type Identity = {
   id: string;
   name: string;
@@ -173,6 +174,8 @@ export default function TrustVault() {
   const [session, setSession] = useState<{
       user: Identity | null;
       demo: boolean;
+      authMode: string;
+      configured: boolean;
       identities: Identity[];
     } | null>(null),
     [data, setData] = useState<Data | null>(null),
@@ -198,6 +201,8 @@ export default function TrustVault() {
     const s = await api<{
       user: Identity | null;
       demo: boolean;
+      authMode: string;
+      configured: boolean;
       identities: Identity[];
     }>("session");
     setSession(s);
@@ -210,7 +215,7 @@ export default function TrustVault() {
       .finally(() => setLoading(false));
     if (new URLSearchParams(location.search).has("authError"))
       setError(
-        "TideCloak sign-in failed. Check the issuer, client, role mapping, and server configuration.",
+        "Sign-in confirmation failed or expired. Try signing in again, or check the authentication provider configuration.",
       );
   }, []);
   useEffect(() => {
@@ -410,7 +415,8 @@ export default function TrustVault() {
               <div className="grow">
                 <h3>
                   {r.recipient?.organisation ||
-                    "CampusNest · simulated accommodation"}
+                    data?.user.organisation ||
+                    "Verified recipient organisation"}
                 </h3>
                 <span className="muted small">
                   {fmt(r.createdAt)} · {r.fields.length} attributes ·{" "}
@@ -702,13 +708,19 @@ export default function TrustVault() {
         <section className="login-form">
           <div className="login-box">
             <Badge tone="amber">
-              {session?.demo ? "Local demo mode" : "TideCloak authentication"}
+              {session?.demo
+                ? "Local demo mode"
+                : session?.authMode === "supabase"
+                  ? "Supabase authentication"
+                  : "TideCloak authentication"}
             </Badge>
             <h2>Welcome to your vault</h2>
             <p className="muted">
               {session?.demo
                 ? "Choose a synthetic identity to explore the complete demonstration."
-                : "Sign in with your university’s configured TideCloak realm."}
+                : session?.authMode === "supabase"
+                  ? "Use your own account. Your vault is private to your verified identity."
+                  : "Sign in with your university’s configured TideCloak realm."}
             </p>
             {error && (
               <div role="alert" className="notice error">
@@ -745,6 +757,15 @@ export default function TrustVault() {
                   </button>
                 ))}
               </div>
+            ) : session?.authMode === "supabase" ? (
+              <SupabaseAuth
+                configured={session.configured}
+                onAuthenticated={async () => {
+                  setError("");
+                  await refresh();
+                  setPage("dashboard");
+                }}
+              />
             ) : (
               <a className="button primary" href="/auth/login">
                 Sign in with TideCloak <ArrowRight size={17} />
@@ -756,7 +777,9 @@ export default function TrustVault() {
                 Synthetic data only.{" "}
                 {session?.demo
                   ? "Simulated local accounts. Normal production startup disables demo authentication."
-                  : "Provisioned accounts and matching realm roles are required."}
+                  : session?.authMode === "supabase"
+                    ? "Real accounts. Document contents remain synthetic. No demo identity switching."
+                    : "Provisioned accounts and matching realm roles are required."}
               </span>
             </div>
           </div>
@@ -926,12 +949,16 @@ export default function TrustVault() {
         <div className="demo-bar">
           <span>
             <Fingerprint size={15} />
-            {session.demo ? "LOCAL DEMO MODE" : "TIDECLOAK AUTHENTICATION"}
+            {session.demo
+              ? "LOCAL DEMO MODE"
+              : session.authMode === "supabase"
+                ? "SUPABASE AUTHENTICATION"
+                : "TIDECLOAK AUTHENTICATION"}
           </span>
           <p>
             {session.demo
               ? "Simulated identities and organisations. You are in a safe demonstration workspace."
-              : "Identity verified with TideCloak. Sharing and governance are enforced by TrustVault."}
+              : `Identity verified with ${session.authMode === "supabase" ? "Supabase" : "TideCloak"}. Sharing and governance are enforced by TrustVault.`}
           </p>
           <LockKeyhole size={14} />
         </div>
@@ -1145,9 +1172,14 @@ export default function TrustVault() {
                                 <Building2 size={21} />
                               </div>
                               <div className="grow">
-                                <h3>CampusNest</h3>
+                                <h3>
+                                  {r.recipient?.organisation?.split(" · ")[0] ||
+                                    "Recipient organisation"}
+                                </h3>
                                 <p className="muted small">
-                                  Student accommodation · simulated
+                                  {session.demo
+                                    ? "Student accommodation · simulated"
+                                    : "Verified recipient · synthetic document request"}
                                 </p>
                               </div>
                               <Badge
@@ -1234,7 +1266,7 @@ export default function TrustVault() {
                   <div className="notice info">
                     <Building2 size={20} />
                     <span>
-                      <strong>CampusNest · simulated accommodation</strong>
+                      <strong>{data.user.organisation}</strong>
                       <br />
                       Requests are tied to this provisioned recipient identity.
                       Each access is rechecked by the server.
@@ -1282,6 +1314,33 @@ export default function TrustVault() {
           )}
           {page === "vault" && (
             <>
+              {!data.documents?.some(
+                (d) => Object.keys(d.attributes).length > 0,
+              ) && (
+                <div className="notice info">
+                  <FileText size={20} />
+                  <span className="grow">
+                    <strong>
+                      Try selective sharing with synthetic samples
+                    </strong>
+                    <br />
+                    Add three fictional documents to your own private vault. No
+                    demo account is needed.
+                  </span>
+                  <button
+                    className="button small-button"
+                    disabled={busy}
+                    onClick={() =>
+                      act(
+                        () => api("documents/samples", "POST", {}),
+                        "Three synthetic sample documents added to your vault.",
+                      )
+                    }
+                  >
+                    Add synthetic samples
+                  </button>
+                </div>
+              )}
               <div className="notice info">
                 <LockKeyhole size={19} />
                 <span>
@@ -1376,8 +1435,10 @@ export default function TrustVault() {
                 <span>
                   <strong>{data.user.organisation}</strong>
                   <br />
-                  Verified demo account: {data.user.email}. Grant access is tied
-                  to this identity.
+                  {session.demo
+                    ? "Verified demo account"
+                    : "Verified account"}: {data.user.email}. Grant access is
+                  tied to this identity.
                 </span>
               </div>
               <div className="section-heading">
@@ -1538,7 +1599,8 @@ export default function TrustVault() {
                       <select name="studentId">
                         {data.students?.map((s) => (
                           <option key={s.id} value={s.id}>
-                            {s.name} · synthetic identity
+                            {s.name}
+                            {session.demo ? " · synthetic identity" : ""}
                           </option>
                         ))}
                       </select>
@@ -1643,7 +1705,10 @@ export default function TrustVault() {
                   <div>
                     <h3>{review.recipient?.organisation}</h3>
                     <span className="small muted">
-                      Verified demo account: {review.recipient?.email}
+                      {session.demo
+                        ? "Verified demo account"
+                        : "Verified recipient account"}
+                      : {review.recipient?.email}
                     </span>
                   </div>
                 </div>

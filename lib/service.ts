@@ -5,6 +5,7 @@ import { db } from "./db";
 import { requireRole } from "./auth";
 import { AppError, readFilePrivate, storeFile, removeFile } from "./storage";
 import { assess, fieldNames } from "./guardian";
+import { samplePdf, syntheticSamples } from "./samples";
 const fieldsSchema = z
   .array(z.enum(fieldNames as [string, ...string[]]))
   .min(1)
@@ -13,6 +14,67 @@ const fieldsSchema = z
     (x) => new Set(x).size === x.length,
     "Duplicate fields are not allowed",
   );
+export async function addSamples(user: User) {
+  requireRole(user, "STUDENT");
+  if (
+    await db.document.count({
+      where: {
+        ownerId: user.id,
+        attributeSource: { startsWith: "Seeded synthetic" },
+      },
+    })
+  )
+    throw new AppError(409, "Your vault already contains synthetic samples.");
+  const stored: string[] = [];
+  try {
+    const prepared: Prisma.DocumentCreateManyInput[] = [];
+    for (const sample of syntheticSamples) {
+      const bytes = samplePdf(
+        sample.title,
+        Object.entries(sample.attributes).map(([k, v]) => `${k}: ${v}`),
+      );
+      const storageId = await storeFile(bytes, "application/pdf");
+      stored.push(storageId);
+      prepared.push({
+        ownerId: user.id,
+        title: sample.title,
+        kind: sample.kind,
+        attributes: sample.attributes,
+        mime: "application/pdf",
+        size: bytes.length,
+        storageId,
+        attributeSource:
+          "Seeded synthetic attributes - fictional Maya Chen; not extracted from an uploaded file",
+      });
+    }
+    await db.$transaction(async (tx) => {
+      if (
+        await tx.document.count({
+          where: {
+            ownerId: user.id,
+            attributeSource: { startsWith: "Seeded synthetic" },
+          },
+        })
+      )
+        throw new AppError(409, "Synthetic samples already exist.");
+      await tx.document.createMany({ data: prepared });
+      await tx.accessEvent.create({
+        data: {
+          actorId: user.id,
+          ownerId: user.id,
+          action: "SYNTHETIC_SAMPLES_ADDED",
+          outcome: "SUCCESS",
+          detail:
+            "Three fictional sample documents encrypted for this authenticated student.",
+        },
+      });
+    });
+    return { created: 3 };
+  } catch (error) {
+    await Promise.all(stored.map((id) => removeFile(id).catch(() => {})));
+    throw error;
+  }
+}
 export async function event(
   actorId: string | null,
   ownerId: string | null,
@@ -120,7 +182,7 @@ export async function overview(user: User) {
         orderBy: { consentAt: "desc" },
       }),
       db.user.findMany({
-        where: { role: "STUDENT" },
+        where: { role: "STUDENT", demo: user.demo },
         select: { id: true, name: true },
       }),
     ]);
@@ -226,7 +288,7 @@ export async function createRequest(user: User, input: unknown) {
     })
     .parse(input);
   const student = await db.user.findFirst({
-    where: { id: data.studentId, role: "STUDENT" },
+    where: { id: data.studentId, role: "STUDENT", demo: user.demo },
   });
   if (!student) throw new AppError(404, "Student not found.");
   return db.$transaction(async (tx) => {

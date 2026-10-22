@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, createHash } from "node:crypto";
 import { SignJWT, jwtVerify } from "jose";
 import { verifyTideToken } from "@/lib/auth";
+import { createSupabaseContext } from "@/lib/supabase";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export async function GET(
@@ -11,6 +12,30 @@ export async function GET(
   const { action } = await params;
   const origin = process.env.APP_ORIGIN || "http://127.0.0.1:3000";
   try {
+    if (process.env.AUTH_MODE === "supabase") {
+      const context = createSupabaseContext(req);
+      let ok = false;
+      if (action === "callback" && req.nextUrl.searchParams.get("code")) {
+        const { error } = await context.client.auth.exchangeCodeForSession(
+          req.nextUrl.searchParams.get("code")!,
+        );
+        ok = !error;
+      }
+      if (
+        action === "confirm" &&
+        req.nextUrl.searchParams.get("token_hash") &&
+        req.nextUrl.searchParams.get("type") === "email"
+      ) {
+        const { error } = await context.client.auth.verifyOtp({
+          token_hash: req.nextUrl.searchParams.get("token_hash")!,
+          type: "email",
+        });
+        ok = !error;
+      }
+      return context.apply(
+        NextResponse.redirect(origin + (ok ? "" : "/?authError=1")),
+      );
+    }
     if (process.env.AUTH_MODE !== "tidecloak")
       throw new Error("TideCloak is not configured.");
     const issuer = process.env.TIDECLOAK_ISSUER,

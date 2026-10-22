@@ -1,4 +1,59 @@
 @import "tailwindcss";
+.supabase-auth label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  color: #547080;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 15px 0;
+}
+.supabase-auth input {
+  padding: 12px;
+  border: 1px solid #dbe4e9;
+  border-radius: 7px;
+  background: #fff;
+  font-size: 13px;
+  color: #294a60;
+  width: 100%;
+}
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  background: #edf3f4;
+  border-radius: 8px;
+  padding: 4px;
+  margin: 20px 0;
+}
+.auth-tabs button {
+  flex: 1;
+  border: 0;
+  border-radius: 5px;
+  padding: 9px;
+  font-size: 11px;
+  background: transparent;
+  color: #718692;
+}
+.auth-tabs button.selected {
+  background: #fff;
+  color: #087c75;
+  box-shadow: 0 1px 4px #112e4010;
+}
+.auth-assurance {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #829997;
+  margin-top: 15px;
+}
+.supabase-auth .notice {
+  font-size: 11px;
+}
+.supabase-auth .notice svg {
+  align-self: flex-start;
+  margin-top: 2px;
+}
 :root {
   --navy: #112e40;
   --teal: #087c75;

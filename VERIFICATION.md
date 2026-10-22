@@ -2,6 +2,14 @@
 
 Run on 22 October 2026 on Windows with Node.js 24.16.0. These are actual results, not planned checks.
 
+## Supabase real-account update
+
+The expanded `npm test` suite now has **32 passing tests**. Added checks cover server-side `getUser` verification, default Student provisioning, ignored editable role metadata, rejection of unconfirmed/anonymous users and email collisions, password session cookies/logout, forged-cookie rejection, refresh-cookie rotation, signup confirmation, misconfiguration/service-role rejection and real-account ownership of synthetic samples. Success-flow provider HTTP responses are fixtures passed through the installed official SDK; no live user was created during automation. The actual configured project's Auth settings returned **HTTP 200**, with email signup enabled and confirmation required. SQLite real-account migrations were applied to `prisma/trustvault-supabase.db`, separate from demo/test data. See SUPABASE.md for details.
+
+The Supabase build and `npm run typecheck` passed. **`npm run test:supabase` passed against the running compiled app and actual Supabase Auth service**: real-provider mode and configured state, no demo identities, demo login 403, protected anonymous requests 401, invalid signup input 400 before provider/email calls, and invalid login credentials 401 from the live Auth path. Browser inspection confirmed the real-account sign-in/create-account screen, required 12-character signup passwords, and no demo identity switcher. No valid signup or email confirmation was automated; those are completed by the account owner. An initial restricted-sandbox build directory error was resolved by creating the generated webpack directory and rerunning the build with normal host permissions.
+
+## Original offline-demo verification
+
 | Check | Result |
 | --- | --- |
 | SQLite migrations and repeatable seed | Passed; both committed migrations applied; four identities, three encrypted PDFs, two pending requests, active/expired/revoked sample grants and one pending policy proposal. |

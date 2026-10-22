@@ -1,6 +1,11 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
-  distDir: process.env.NODE_ENV === "production" ? ".next-production" : ".next",
+  distDir:
+    process.env.NODE_ENV === "production"
+      ? process.env.AUTH_MODE === "supabase"
+        ? ".next-supabase"
+        : ".next-production"
+      : ".next",
   serverExternalPackages: ["@prisma/client", "@tidecloak/nextjs"],
   async headers() {
     return [
