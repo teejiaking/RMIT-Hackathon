@@ -2,6 +2,8 @@
 
 A working local hackathon prototype for private student documents, selective consent, revocable recipient access, and two-person policy approval. **Use synthetic data only.**
 
+Visitors can browse the website without signing in. The public preview includes fictional documents, a request review, selective consent, recipient viewing, revocation, and an activity list held only in the current browser tab. Reloading resets the exercise. No private account data is fetched or exposed. Choose **Sign in / Create account** for persistent uploads and authenticated workflows; the original server authorization checks still apply to every private API.
+
 ## Real accounts: Supabase (current configuration)
 
 The active workspace uses **Supabase Auth**, with a separate real-account SQLite database and private storage directory. Sign up with your own email, confirm it, then sign in. There is no demo account switcher in this mode. Start with `npm run setup`, configure the project URL/publishable key in `.env`, then `npm run db:migrate`, `npm run build`, and `npm start`. See **[SUPABASE.md](SUPABASE.md)** for exact settings, staff role provisioning, verified-session handling, and current integration/test status. No service-role secret is needed. The TideCloak adapter remains an optional alternate provider.

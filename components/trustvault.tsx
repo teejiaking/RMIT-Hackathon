@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { fieldLabels } from "@/lib/guardian";
 import SupabaseAuth from "./supabase-auth";
+import PublicWorkspace from "./public-workspace";
 type Identity = {
   id: string;
   name: string;
@@ -179,6 +180,7 @@ export default function TrustVault() {
       identities: Identity[];
     } | null>(null),
     [data, setData] = useState<Data | null>(null),
+    [showSignIn, setShowSignIn] = useState(false),
     [page, setPage] = useState("dashboard"),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false),
@@ -213,10 +215,12 @@ export default function TrustVault() {
     refresh()
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-    if (new URLSearchParams(location.search).has("authError"))
+    if (new URLSearchParams(location.search).has("authError")) {
+      setShowSignIn(true);
       setError(
         "Sign-in confirmation failed or expired. Try signing in again, or check the authentication provider configuration.",
       );
+    }
   }, []);
   useEffect(() => {
     if (toast) {
@@ -288,6 +292,7 @@ export default function TrustVault() {
       )
     ) {
       setPage("dashboard");
+      setShowSignIn(false);
       setReview(null);
       setShare(null);
       setModal(null);
@@ -664,9 +669,11 @@ export default function TrustVault() {
     return (
       <div className="loading">
         <ShieldCheck size={42} />
-        <p>Opening your private workspace…</p>
+        <p>Opening TrustVault…</p>
       </div>
     );
+  if (!session?.user && !showSignIn)
+    return <PublicWorkspace onSignIn={() => setShowSignIn(true)} />;
   if (!session?.user || !data)
     return (
       <main className="login-page">
@@ -707,11 +714,20 @@ export default function TrustVault() {
         </section>
         <section className="login-form">
           <div className="login-box">
+            {!session?.user && (
+              <button
+                className="text-button public-back"
+                onClick={() => {
+                  setShowSignIn(false);
+                  setError("");
+                }}
+              >
+                ← Browse without signing in
+              </button>
+            )}
             {session?.authMode !== "supabase" && (
               <Badge tone="amber">
-                {session?.demo
-                  ? "Local demo mode"
-                  : "TideCloak authentication"}
+                {session?.demo ? "Local demo mode" : "TideCloak authentication"}
               </Badge>
             )}
             <h2>Welcome to your vault</h2>
@@ -764,6 +780,7 @@ export default function TrustVault() {
                   setError("");
                   await refresh();
                   setPage("dashboard");
+                  setShowSignIn(false);
                 }}
               />
             ) : (

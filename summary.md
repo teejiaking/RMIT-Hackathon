@@ -14,7 +14,7 @@ Accommodation and similar services may request full documents when they need onl
 
 ## Implemented prototype
 
-A responsive navy/teal/white dashboard, private document vault, request review, Guardian advisory panel, consent controls, sharing centre, simulated recipient portal, governance panel and timestamped activity log. All primary controls perform server-backed operations. Four clearly labelled local identities cover a student, recipient and two independent administrators.
+A responsive navy/teal/white dashboard, private document vault, request review, Guardian advisory panel, consent controls, sharing centre, simulated recipient portal, governance panel and timestamped activity log. Authenticated controls perform server-backed operations. Visitors can browse without logging in through a clearly labelled guest preview: fictional document attributes, an excessive request, selected consent, recipient viewing and revocation run entirely in the current browser tab and reset on reload. The preview never fetches private account data or creates real grants. Four clearly labelled optional local demo identities cover a student, recipient and two independent administrators.
 
 Small synthetic PDF/PNG/JPEG files are checked server-side and encrypted using AES-256-GCM outside public assets. Original previews are owner-only. Structured synthetic sample attributes enable selective sharing; uploads are explicitly not extracted or verified. Recipients receive only approved attributes through authenticated, non-cacheable routes. There are no public document links or full-document sharing features.
 

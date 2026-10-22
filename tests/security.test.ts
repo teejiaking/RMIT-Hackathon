@@ -26,7 +26,7 @@ import {
   supabaseConfigured,
 } from "../lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
-import { POST as authPost } from "../app/api/[...path]/route";
+import { GET as apiGet, POST as authPost } from "../app/api/[...path]/route";
 let student: User,
   recipient: User,
   adminA: User,
@@ -620,6 +620,40 @@ test("Supabase anonymous and unconfirmed users cannot open a vault", async () =>
     const unconfirmed = supabaseFixture();
     delete unconfirmed.email_confirmed_at;
     await denied(() => resolveSupabaseUser(unconfirmed), 403);
+    for (const path of [
+      ["overview"],
+      ["documents", "doc-enrolment", "preview"],
+      ["grants", "grant-active", "access"],
+    ]) {
+      const response = await apiGet(
+        new NextRequest("http://127.0.0.1:3000/api/" + path.join("/")),
+        { params: Promise.resolve({ path }) },
+      );
+      assert.equal(response.status, 401);
+      assert.match(response.headers.get("cache-control")!, /no-store/);
+      assert.equal(
+        JSON.stringify(await response.json()).includes("Currently enrolled"),
+        false,
+      );
+    }
+    for (const path of [
+      ["documents", "samples"],
+      ["requests"],
+      ["proposals"],
+    ]) {
+      const response = await authPost(
+        new NextRequest("http://127.0.0.1:3000/api/" + path.join("/"), {
+          method: "POST",
+          headers: {
+            origin: process.env.APP_ORIGIN!,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ role: "ADMINISTRATOR" }),
+        }),
+        { params: Promise.resolve({ path }) },
+      );
+      assert.equal(response.status, 401);
+    }
   }));
 
 test("Supabase email collisions never automatically link a demo or another provider identity", async () =>

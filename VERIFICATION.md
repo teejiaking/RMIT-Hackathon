@@ -2,7 +2,15 @@
 
 Run on 22 October 2026 on Windows with Node.js 24.16.0. These are actual results, not planned checks.
 
-## Supabase real-account update
+## Public browsing update
+
+- `npm test`: 32 passed, including unauthenticated route checks for private overview, document preview, grant access, sample uploads, requests and policy proposals. Private endpoints still return 401 and sensitive reads retain no-store headers.
+- `npm run typecheck` and `npm run build`: passed.
+- Browser: an unsigned visitor sees the guest workspace first. The example request approves enrolment only, the recipient preview displays exactly that field, and revocation denies the next access and removes the attribute view. Optional sign-in and return to public browsing work. At the 390 × 844 phone breakpoint, navigation opens, document examples remain accessible, and there is no horizontal overflow.
+- Signup now accepts six-character passwords and rejects five at the application boundary; the automated signup provider response is a fixture. Supabase's own project policy remains applicable.
+- The guest exercise uses public fictional data and local component state. It creates no real grants and does not test a deployed Vercel database/storage migration.
+
+## Supabase real-account update (initial verification)
 
 The expanded `npm test` suite now has **32 passing tests**. Added checks cover server-side `getUser` verification, default Student provisioning, ignored editable role metadata, rejection of unconfirmed/anonymous users and email collisions, password session cookies/logout, forged-cookie rejection, refresh-cookie rotation, signup confirmation, misconfiguration/service-role rejection and real-account ownership of synthetic samples. Success-flow provider HTTP responses are fixtures passed through the installed official SDK; no live user was created during automation. The actual configured project's Auth settings returned **HTTP 200**, with email signup enabled and confirmation required. SQLite real-account migrations were applied to `prisma/trustvault-supabase.db`, separate from demo/test data. See SUPABASE.md for details.
 
