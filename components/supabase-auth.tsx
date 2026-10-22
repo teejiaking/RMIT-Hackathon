@@ -129,15 +129,15 @@ export default function SupabaseAuth({
             type="password"
             name="password"
             autoComplete={signup ? "new-password" : "current-password"}
-            minLength={signup ? 12 : 1}
+            minLength={signup ? 6 : 1}
             maxLength={256}
             disabled={busy}
           />
         </label>
         {signup && (
           <p className="footnote">
-            Use at least 12 characters. Confirm your email before signing in.
-            New accounts are students; staff roles are assigned by the project
+            Use at least 6 characters. Confirm your email before signing in. New
+            accounts are students; staff roles are assigned by the project
             operator.
           </p>
         )}

@@ -34,7 +34,7 @@ assert.equal(
 assert.equal(
   (
     await post("auth/supabase/signup", {
-      email: "not-an-email",
+      email: "trustvault-nonexistent@example.test",
       password: "short",
       role: "ADMINISTRATOR",
     })

@@ -93,7 +93,7 @@ async function dispatch(
           email: z.email().max(254),
           password: z
             .string()
-            .min(signup ? 12 : 1)
+            .min(signup ? 6 : 1)
             .max(256),
           name: z.string().trim().min(2).max(100).optional(),
         })

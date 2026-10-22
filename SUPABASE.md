@@ -38,7 +38,7 @@ In production use an HTTPS app origin. HTTP is permitted only for the explicit l
 
 ## Your first account
 
-1. Choose **Create student account**, enter your own email/name and a password of at least 12 characters.
+1. Choose **Create student account**, enter your own email/name and a password of at least 6 characters. The Supabase project's password policy must also allow six-character passwords; its minimum length is configured under Authentication settings.
 2. Confirm your email using Supabase's email. The live project reports email confirmation is enabled. If the confirmation returns to a different origin, come back to TrustVault and sign in with the confirmed email and password.
 3. For seamless email return, in [Supabase URL Configuration](https://supabase.com/dashboard/project/umyierhvfoqkgsubuhvs/auth/url-configuration), set the Site URL to `http://127.0.0.1:3000` and allow `http://127.0.0.1:3000/auth/callback`. For deployment use the exact HTTPS equivalent. Changes to the project's dashboard settings were not made automatically.
 4. Your first successful, server-verified sign-in creates a **Student** mapping keyed by `supabase:<immutable auth user id>`. Email confirmation and non-anonymous identity are required. Existing accounts are never linked by matching email alone.

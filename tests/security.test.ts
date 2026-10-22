@@ -25,7 +25,8 @@ import {
   supabaseCredentials,
   supabaseConfigured,
 } from "../lib/supabase";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { POST as authPost } from "../app/api/[...path]/route";
 let student: User,
   recipient: User,
   adminA: User,
@@ -761,35 +762,51 @@ test("Supabase expired sessions refresh and propagate rotated cookies on the sam
     assert.match(res.headers.get("cache-control")!, /no-store/);
   }));
 
-test("Supabase sign-up requires confirmation and cannot submit a privileged role", async () =>
+test("Supabase sign-up accepts six characters, rejects five, requires confirmation and ignores submitted roles", async () =>
   withSupabaseTest(async () => {
     const user = supabaseFixture(
       "55555555-5555-4555-8555-555555555555",
       "signup@example.test",
     );
     delete user.email_confirmed_at;
-    const context = createSupabaseContext(
-      new Request("http://127.0.0.1:3000"),
-      async (_input, init) => {
-        const body = JSON.parse(String(init?.body));
-        assert.equal(body.data.display_name, "New student");
-        assert.equal("role" in body.data, false);
-        return providerResponse(user);
-      },
-    );
-    const result = await supabaseCredentials(
-      context.client,
-      {
-        email: user.email!,
-        password: "long-test-only-password",
-        name: "New student",
-      },
-      true,
-    );
-    assert.equal(
-      "confirmationRequired" in result && result.confirmationRequired,
-      true,
-    );
+    const originalFetch = globalThis.fetch;
+    let providerCalls = 0;
+    globalThis.fetch = async (input, init) => {
+      assert.match(String(input), /\/auth\/v1\/signup/);
+      providerCalls++;
+      const body = JSON.parse(String(init?.body));
+      assert.equal(body.password, "abc123");
+      assert.equal(body.data.display_name, "New student");
+      assert.equal("role" in body.data, false);
+      return providerResponse(user);
+    };
+    const signup = (password: string) =>
+      authPost(
+        new NextRequest("http://127.0.0.1:3000/api/auth/supabase/signup", {
+          method: "POST",
+          headers: {
+            origin: process.env.APP_ORIGIN!,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: user.email,
+            password,
+            name: "New student",
+            role: "ADMINISTRATOR",
+          }),
+        }),
+        { params: Promise.resolve({ path: ["auth", "supabase", "signup"] }) },
+      );
+    try {
+      assert.equal((await signup("abc12")).status, 400);
+      assert.equal(providerCalls, 0);
+      const response = await signup("abc123");
+      assert.equal(response.status, 200);
+      assert.equal((await response.json()).confirmationRequired, true);
+      assert.equal(providerCalls, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   }));
 
 test("Supabase misconfiguration and service-role secrets fail closed", async () =>
