@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.next-production/
+.env
+.env.local
+.env.*
+!.env.example
+private-storage/
+prisma/*.db*
+*.tsbuildinfo
+test-results/
