@@ -1,5 +1,7 @@
 # TrustVault: two-minute demonstration
 
+For the current no-login website, use [the ElevenLabs guest-preview script and timed screen cues](DEMO_GUEST_2MIN.md). The walkthrough below is for the separate signed-in or optional local-demo account journey.
+
 **Current real-account mode:** use `npm start` after configuring Supabase and building. Create and confirm real student/recipient/two-administrator accounts, provision staff roles as described in SUPABASE.md, and add synthetic samples as the student. Perform the same journey below by signing out/in or using separate browser profiles; the identity dropdown exists only in the optional local demo. Do not run `demo:reset` on a real-account deployment; the command refuses Supabase mode.
 
 Before presenting: run `npm run build`, start `npm run demo`, run `npm run demo:reset` in another terminal, and reload http://127.0.0.1:3000. Have `examples/synthetic-upload.pdf` ready in the file picker. All people, organisations, identifiers and documents are synthetic. `npm run dev` is available for source editing; the compiled demo avoids development-server manifest races on this Windows host.
