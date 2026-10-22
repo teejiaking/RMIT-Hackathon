@@ -30,7 +30,7 @@ npm run build
 npm start
 ```
 
-Open **http://127.0.0.1:3000**. For editing, use `npm run dev`. Supabase production builds use `.next-supabase/`, separate from the optional compiled demo. Keep the server running. A fresh database gets the seven-day policy via migration and contains no demo users. Existing demo files and `prisma/trustvault.db` are preserved separately on this workspace.
+Open **http://127.0.0.1:3000**. For editing, use `npm run dev`. Local Supabase production builds use `.next-supabase/`, separate from the optional compiled demo. Vercel builds use standard `.next/`; see the [Vercel build configuration and persistence limitations in README](README.md#vercel-build-configuration) before deploying. Keep the server running. A fresh database gets the seven-day policy via migration and contains no demo users. Existing demo files and `prisma/trustvault.db` are preserved separately on this workspace.
 
 All application auth requests go through same-origin server routes. `SUPABASE_URL` and the publishable key stay in server environment variables in this architecture; neither is a service-role secret. Passwords are submitted to Supabase over HTTPS and are not stored in Prisma or application logs. Supabase session cookies are HttpOnly, SameSite=Lax, Secure for HTTPS, chunked by the official SSR SDK, and excluded from cached responses. Route handlers verify with `getUser()` and propagate refreshed cookies on that same response; the public application shell does not make auth decisions from a browser session object. Because protected data is served by writable route handlers, no separate Server Component auth proxy is required here.
 

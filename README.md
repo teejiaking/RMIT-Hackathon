@@ -58,6 +58,14 @@ Webpack is used explicitly because Turbopack's Windows worker failed in this env
 
 `npm ci` generates the Prisma client via `postinstall`. After changing `prisma/schema.prisma`, stop the running server before `npm run db:generate` on Windows because the native DLL is locked while in use. Builds do not regenerate the unchanged client. Do not rebuild `.next-production` while the compiled demo is running; use the dev server during source changes, then rebuild and relaunch the demo.
 
+## Vercel build configuration
+
+`vercel.json` selects the Next.js framework, `npm run build`, and `.next` output. `next.config.ts` uses `.next` when Vercel sets `VERCEL=1`; the separate local production directories described above remain available for local presentations. Set the Vercel Root Directory to the repository root and use Node.js 24.x. Redeploy the latest commit after changing settings. Keep Vercel system environment variables enabled so `VERCEL` is available during builds and at runtime.
+
+This fixes build-output discovery, but **the complete vault is not ready for Vercel's serverless runtime**. Supabase currently supplies authentication only. Prisma still uses local SQLite, and encrypted originals still use local filesystem storage. Vercel does not provide durable shared local storage for these operations ([official SQLite guidance](https://vercel.com/kb/guide/is-sqlite-supported-in-vercel)). Do not point these stores at `/tmp` or seed them during builds as a persistence workaround. For a working hosted vault, either run this application on a Node server with a persistent private disk, or migrate the database and encrypted file storage to durable hosted services before using Vercel.
+
+For hosted Supabase authentication, configure `AUTH_MODE=supabase`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `APP_ORIGIN` (the exact HTTPS deployment origin), `SESSION_SECRET`, and `DOCUMENT_ENCRYPTION_KEY` in server environment variables. Allow the matching `/auth/callback` URL in Supabase. `.env` is intentionally not committed. These settings alone do not replace the vault's local persistence.
+
 ## Implemented screens and operations
 
 - Dashboard: document, pending request, active grant counts and recent activity.

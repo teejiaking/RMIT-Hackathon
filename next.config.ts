@@ -1,11 +1,14 @@
 import type { NextConfig } from "next";
 const config: NextConfig = {
   distDir:
-    process.env.NODE_ENV === "production"
-      ? process.env.AUTH_MODE === "supabase"
-        ? ".next-supabase"
-        : ".next-production"
-      : ".next",
+    // Vercel's Next.js adapter expects the standard build output directory.
+    process.env.VERCEL === "1"
+      ? ".next"
+      : process.env.NODE_ENV === "production"
+        ? process.env.AUTH_MODE === "supabase"
+          ? ".next-supabase"
+          : ".next-production"
+        : ".next",
   serverExternalPackages: ["@prisma/client", "@tidecloak/nextjs"],
   async headers() {
     return [
